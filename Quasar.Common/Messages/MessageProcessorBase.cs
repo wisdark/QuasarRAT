@@ -12,8 +12,7 @@ namespace Quasar.Common.Messages
     /// Any event handlers registered with the <see cref="ProgressChanged"/> event are invoked through a 
     /// <see cref="System.Threading.SynchronizationContext"/> instance chosen when the instance is constructed.
     /// </remarks>
-    /// TODO: .NET 4.5 Change: this can be simplified with .NET 4.5+ --> IProgress{T} in System namespace
-    public abstract class MessageProcessorBase<T> : IMessageProcessor, IProgress<T>, IDisposable
+    public abstract class MessageProcessorBase<T> : IMessageProcessor, IProgress<T>
     {
         /// <summary>
         /// The synchronization context chosen upon construction.
@@ -61,7 +60,7 @@ namespace Quasar.Common.Messages
         /// Initializes the <see cref="MessageProcessorBase{T}"/>
         /// </summary>
         /// <param name="useCurrentContext">
-        /// If this value is <code>false</code>, the progress callbacks will be invoked on the ThreadPool.
+        /// If this value is <c>false</c>, the progress callbacks will be invoked on the ThreadPool.
         /// Otherwise the current SynchronizationContext will be used.
         /// </param>
         protected MessageProcessorBase(bool useCurrentContext)
@@ -80,37 +79,15 @@ namespace Quasar.Common.Messages
             handler?.Invoke(this, (T)state);
         }
 
-        /// <summary>
-        /// Disposes all managed and unmanaged resources associated with this message processor.
-        /// </summary>
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        /// <summary>
-        /// Decides whether this message processor can execute the specified message.
-        /// </summary>
-        /// <param name="message">The message to execute.</param>
-        /// <returns><code>True</code> if the message can be executed by this message processor, otherwise <code>false</code>.</returns>
+        /// <inheritdoc />
         public abstract bool CanExecute(IMessage message);
 
-        /// <summary>
-        /// Decides whether this message processor can execute messages received from the sender.
-        /// </summary>
-        /// <param name="sender">The sender of a message.</param>
-        /// <returns><code>True</code> if this message processor can execute messages from the sender, otherwise <code>false</code>.</returns>
+        /// <inheritdoc />
         public abstract bool CanExecuteFrom(ISender sender);
 
-        /// <summary>
-        /// Executes the received message.
-        /// </summary>
-        /// <param name="sender">The sender of this message.</param>
-        /// <param name="message">The received message.</param>
+        /// <inheritdoc />
         public abstract void Execute(ISender sender, IMessage message);
 
-        protected abstract void Dispose(bool disposing);
         void IProgress<T>.Report(T value) => OnReport(value);
     }
 
@@ -123,7 +100,7 @@ namespace Quasar.Common.Messages
     internal static class ProgressStatics
     {
         /// <summary>
-        /// A default synchronization context that targets the ThreadPool.
+        /// A default synchronization context that targets the <see cref="ThreadPool"/>.
         /// </summary>
         internal static readonly SynchronizationContext DefaultContext = new SynchronizationContext();
     }

